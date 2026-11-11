@@ -1,5 +1,7 @@
 # tiny-rag
 
+[![tests](https://github.com/ngo-binh0108/tiny-rag/actions/workflows/tests.yml/badge.svg)](https://github.com/ngo-binh0108/tiny-rag/actions/workflows/tests.yml)
+
 A minimal **retrieval-augmented generation (RAG)** command-line tool for Python.
 
 - **Retrieval:** pure-Python BM25 with paragraph-aware chunking. No dependencies, no embedding model, no vector database.
@@ -74,6 +76,8 @@ print(answer("What is multi-head attention?", hits))
 pip install -e ".[dev]"
 pytest
 ```
+
+The tests replace the Anthropic client with a stand-in, so they need no API key and make no network calls.
 
 ## License
 
