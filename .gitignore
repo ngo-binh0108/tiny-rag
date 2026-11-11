@@ -8,4 +8,3 @@ build/
 .pytest_cache/
 .tiny_rag_index.json
 .env
-.github/workflows/

@@ -52,3 +52,33 @@ def test_cli_index_and_search(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Indexed 2 chunks" in out
     assert "1. rag.md#0" in out
+
+
+def test_chunk_overlap_must_be_smaller_than_the_chunk():
+    import pytest
+
+    with pytest.raises(ValueError):
+        chunk_text("a b c", "doc.txt", max_words=10, overlap=10)
+
+
+def test_short_paragraphs_share_a_chunk():
+    chunks = chunk_text("one two\n\nthree four\n\n\nfive", "doc.md", max_words=10, overlap=2)
+    assert [c.text for c in chunks] == ["one two three four five"]
+
+
+def test_load_documents_reads_only_text_files(tmp_path):
+    from tiny_rag.retriever import load_documents
+
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "notes.md").write_text("hello", encoding="utf-8")
+    (tmp_path / "data.csv").write_text("a,b", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"\x89PNG")
+    assert sorted(load_documents(tmp_path)) == ["data.csv", "sub/notes.md"]
+    assert load_documents(tmp_path / "sub" / "notes.md") == {"notes.md": "hello"}
+
+
+def test_index_of_an_empty_folder_stops(tmp_path):
+    import pytest
+
+    with pytest.raises(SystemExit, match="No text documents"):
+        main(["--index", str(tmp_path / "i.json"), "index", str(tmp_path)])
