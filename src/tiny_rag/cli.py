@@ -87,6 +87,11 @@ def main(argv: list[str] | None = None) -> None:
     p.set_defaults(func=cmd_ask)
 
     args = parser.parse_args(argv)
+    # Documents and answers can hold text a Windows console (or a redirect to a file) cannot encode
+    # in its code page. Replace those characters rather than crash, which for `ask` would also
+    # throw away an answer that has already been paid for.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     args.func(args)
 
 
