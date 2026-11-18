@@ -19,7 +19,7 @@ def _load(args: argparse.Namespace) -> BM25Index:
 
 
 def cmd_index(args: argparse.Namespace) -> None:
-    idx = BM25Index.from_path(args.docs, max_words=args.chunk_words, overlap=args.overlap)
+    idx = BM25Index.from_path(args.docs, max_words=args.chunk_words, overlap=args.overlap, exclude=[args.index])
     if not idx.chunks:
         sys.exit(f"No text documents found under {args.docs}.")
     idx.save(args.index)

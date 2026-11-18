@@ -20,6 +20,7 @@ pip install -e ".[llm]"      # add ",dev" for pytest
 
 ```bash
 # 1. Build an index from a file or a folder of .md/.txt/.py/... files
+#    (hidden folders such as .git and .venv, and node_modules, are skipped)
 tiny-rag index examples/docs
 
 # 2. Inspect retrieval (no API call)

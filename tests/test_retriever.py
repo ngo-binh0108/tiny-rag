@@ -92,6 +92,28 @@ def test_load_documents_reads_only_text_files(tmp_path):
     assert load_documents(tmp_path / "sub" / "notes.md") == {"notes.md": "hello"}
 
 
+def test_load_documents_skips_hidden_and_dependency_folders(tmp_path):
+    from tiny_rag.retriever import load_documents
+
+    (tmp_path / "notes.md").write_text("keep", encoding="utf-8")
+    for folder in (".git", ".venv/lib", "node_modules/pkg", "src/__pycache__"):
+        (tmp_path / folder).mkdir(parents=True)
+        (tmp_path / folder / "x.txt").write_text("skip", encoding="utf-8")
+    (tmp_path / ".hidden.md").write_text("skip", encoding="utf-8")
+    assert list(load_documents(tmp_path)) == ["notes.md"]
+
+
+def test_reindexing_a_folder_does_not_index_the_index(tmp_path, capsys):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("Retrieval grounds answers.", encoding="utf-8")
+    (docs / "b.md").write_text("Tomatoes need sun.", encoding="utf-8")
+    index = str(docs / "i.json")  # the index lives inside the folder being indexed
+    main(["--index", index, "index", str(docs)])
+    main(["--index", index, "index", str(docs)])
+    assert "from 2 file(s)" in capsys.readouterr().out.splitlines()[-1]
+
+
 def test_index_of_an_empty_folder_stops(tmp_path):
     import pytest
 
