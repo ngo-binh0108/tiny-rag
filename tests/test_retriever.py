@@ -1,3 +1,5 @@
+import unicodedata
+
 from tiny_rag import BM25Index, Chunk, chunk_text, tokenize
 from tiny_rag.cli import main
 from tiny_rag.generator import build_prompt
@@ -5,6 +7,19 @@ from tiny_rag.generator import build_prompt
 
 def test_tokenize_drops_stopwords_and_punctuation():
     assert tokenize("What is the Transformer, really?") == ["transformer", "really"]
+
+
+def test_tokenize_keeps_letters_of_every_script():
+    assert tokenize("Phở là món ăn Hà Nội, café") == ["phở", "là", "món", "ăn", "hà", "nội", "café"]
+    assert tokenize("Straße Ελληνικά Привет") == ["strasse", "ελληνικά", "привет"]
+    assert tokenize("snake_case") == ["snake", "case"]
+    # the same word typed precomposed or with combining accents is one token
+    assert tokenize(unicodedata.normalize("NFD", "Phở")) == tokenize("Phở")
+
+
+def test_non_english_documents_can_be_searched():
+    index = BM25Index([Chunk("pho.md", 0, "Phở là món ăn nổi tiếng của Hà Nội."), Chunk("bread.md", 0, "Bánh mì giòn.")])
+    assert [c.source for c, _ in index.search("món phở")] == ["pho.md"]
 
 
 def test_chunk_text_respects_size_and_overlap():

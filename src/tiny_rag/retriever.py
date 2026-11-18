@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import math
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 TEXT_SUFFIXES = {".txt", ".md", ".rst", ".py", ".json", ".csv", ".html"}
-_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_TOKEN_RE = re.compile(r"[^\W_]+")  # runs of letters and digits in any script
 _STOPWORDS = frozenset(
     "a an and are as at be by for from has have in is it its of on or that the "
     "this to was were will with what which who how why when where do does".split()
@@ -18,8 +19,13 @@ _STOPWORDS = frozenset(
 
 
 def tokenize(text: str) -> list[str]:
-    """Lowercase, split on non-alphanumerics, and drop stopwords."""
-    return [t for t in _TOKEN_RE.findall(text.lower()) if t not in _STOPWORDS]
+    """Normalise, lowercase, split on anything but letters and digits, and drop stopwords.
+
+    NFKC makes a precomposed "ở" and "o" + combining marks the same token, and casefold()
+    lowercases scripts that lower() does not fully handle (German "ß" becomes "ss").
+    """
+    text = unicodedata.normalize("NFKC", text).casefold()
+    return [t for t in _TOKEN_RE.findall(text) if t not in _STOPWORDS]
 
 
 @dataclass
