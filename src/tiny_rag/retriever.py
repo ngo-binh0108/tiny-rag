@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import math
 import re
+import unicodedata
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 TEXT_SUFFIXES = {".txt", ".md", ".rst", ".py", ".json", ".csv", ".html"}
-_TOKEN_RE = re.compile(r"[a-z0-9]+")
+SKIP_DIRS = {"node_modules", "__pycache__", "venv", "env", "site-packages"}
+_TOKEN_RE = re.compile(r"[^\W_]+")  # runs of letters and digits in any script
 _STOPWORDS = frozenset(
     "a an and are as at be by for from has have in is it its of on or that the "
     "this to was were will with what which who how why when where do does".split()
@@ -18,8 +21,13 @@ _STOPWORDS = frozenset(
 
 
 def tokenize(text: str) -> list[str]:
-    """Lowercase, split on non-alphanumerics, and drop stopwords."""
-    return [t for t in _TOKEN_RE.findall(text.lower()) if t not in _STOPWORDS]
+    """Normalise, lowercase, split on anything but letters and digits, and drop stopwords.
+
+    NFKC makes a precomposed "ở" and "o" + combining marks the same token, and casefold()
+    lowercases scripts that lower() does not fully handle (German "ß" becomes "ss").
+    """
+    text = unicodedata.normalize("NFKC", text).casefold()
+    return [t for t in _TOKEN_RE.findall(text) if t not in _STOPWORDS]
 
 
 @dataclass
@@ -53,10 +61,30 @@ def chunk_text(text: str, source: str, max_words: int = 200, overlap: int = 40) 
     return chunks
 
 
-def load_documents(path: str | Path) -> dict[str, str]:
-    """Read a file, or every text-like file under a directory."""
+def _skipped(rel: Path) -> bool:
+    """Hidden files and folders (.git, .venv, ...) and dependency or cache folders."""
+    return any(part.startswith(".") or part in SKIP_DIRS for part in rel.parts)
+
+
+def load_documents(path: str | Path, exclude: Iterable[str | Path] = ()) -> dict[str, str]:
+    """Read a file, or every text-like file under a directory.
+
+    Under a directory, hidden and dependency folders are skipped, and so are the files in `exclude`
+    (such as the index file itself, which is JSON and would otherwise be indexed too).
+    """
     root = Path(path)
-    files = [root] if root.is_file() else sorted(p for p in root.rglob("*") if p.suffix.lower() in TEXT_SUFFIXES)
+    excluded = {Path(e).resolve() for e in exclude}
+    if root.is_file():
+        files = [root]
+    else:
+        files = sorted(
+            p
+            for p in root.rglob("*")
+            if p.suffix.lower() in TEXT_SUFFIXES
+            and p.is_file()
+            and not _skipped(p.relative_to(root))
+            and p.resolve() not in excluded
+        )
     docs = {}
     for f in files:
         name = f.name if root.is_file() else f.relative_to(root).as_posix()
@@ -104,9 +132,11 @@ class BM25Index:
         return scored[:k]
 
     @classmethod
-    def from_path(cls, path: str | Path, max_words: int = 200, overlap: int = 40) -> "BM25Index":
+    def from_path(
+        cls, path: str | Path, max_words: int = 200, overlap: int = 40, exclude: Iterable[str | Path] = ()
+    ) -> "BM25Index":
         chunks: list[Chunk] = []
-        for name, text in load_documents(path).items():
+        for name, text in load_documents(path, exclude).items():
             chunks.extend(chunk_text(text, name, max_words, overlap))
         return cls(chunks)
 

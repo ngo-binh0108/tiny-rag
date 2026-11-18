@@ -1,3 +1,5 @@
+import unicodedata
+
 from tiny_rag import BM25Index, Chunk, chunk_text, tokenize
 from tiny_rag.cli import main
 from tiny_rag.generator import build_prompt
@@ -5,6 +7,19 @@ from tiny_rag.generator import build_prompt
 
 def test_tokenize_drops_stopwords_and_punctuation():
     assert tokenize("What is the Transformer, really?") == ["transformer", "really"]
+
+
+def test_tokenize_keeps_letters_of_every_script():
+    assert tokenize("Phở là món ăn Hà Nội, café") == ["phở", "là", "món", "ăn", "hà", "nội", "café"]
+    assert tokenize("Straße Ελληνικά Привет") == ["strasse", "ελληνικά", "привет"]
+    assert tokenize("snake_case") == ["snake", "case"]
+    # the same word typed precomposed or with combining accents is one token
+    assert tokenize(unicodedata.normalize("NFD", "Phở")) == tokenize("Phở")
+
+
+def test_non_english_documents_can_be_searched():
+    index = BM25Index([Chunk("pho.md", 0, "Phở là món ăn nổi tiếng của Hà Nội."), Chunk("bread.md", 0, "Bánh mì giòn.")])
+    assert [c.source for c, _ in index.search("món phở")] == ["pho.md"]
 
 
 def test_chunk_text_respects_size_and_overlap():
@@ -75,6 +90,28 @@ def test_load_documents_reads_only_text_files(tmp_path):
     (tmp_path / "image.png").write_bytes(b"\x89PNG")
     assert sorted(load_documents(tmp_path)) == ["data.csv", "sub/notes.md"]
     assert load_documents(tmp_path / "sub" / "notes.md") == {"notes.md": "hello"}
+
+
+def test_load_documents_skips_hidden_and_dependency_folders(tmp_path):
+    from tiny_rag.retriever import load_documents
+
+    (tmp_path / "notes.md").write_text("keep", encoding="utf-8")
+    for folder in (".git", ".venv/lib", "node_modules/pkg", "src/__pycache__"):
+        (tmp_path / folder).mkdir(parents=True)
+        (tmp_path / folder / "x.txt").write_text("skip", encoding="utf-8")
+    (tmp_path / ".hidden.md").write_text("skip", encoding="utf-8")
+    assert list(load_documents(tmp_path)) == ["notes.md"]
+
+
+def test_reindexing_a_folder_does_not_index_the_index(tmp_path, capsys):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "a.md").write_text("Retrieval grounds answers.", encoding="utf-8")
+    (docs / "b.md").write_text("Tomatoes need sun.", encoding="utf-8")
+    index = str(docs / "i.json")  # the index lives inside the folder being indexed
+    main(["--index", index, "index", str(docs)])
+    main(["--index", index, "index", str(docs)])
+    assert "from 2 file(s)" in capsys.readouterr().out.splitlines()[-1]
 
 
 def test_index_of_an_empty_folder_stops(tmp_path):
