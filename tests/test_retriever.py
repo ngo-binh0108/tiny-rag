@@ -1,3 +1,5 @@
+import io
+import sys
 import unicodedata
 
 from tiny_rag import BM25Index, Chunk, chunk_text, tokenize
@@ -112,6 +114,18 @@ def test_reindexing_a_folder_does_not_index_the_index(tmp_path, capsys):
     main(["--index", index, "index", str(docs)])
     main(["--index", index, "index", str(docs)])
     assert "from 2 file(s)" in capsys.readouterr().out.splitlines()[-1]
+
+
+def test_search_prints_any_text_on_a_cp1252_console(tmp_path, monkeypatch):
+    docs = tmp_path / "pho.md"
+    docs.write_text("Phở là món ăn nổi tiếng của Hà Nội.", encoding="utf-8")
+    index = str(tmp_path / "i.json")
+    main(["--index", index, "index", str(docs)])
+    out = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(out, encoding="cp1252"))
+    main(["--index", index, "search", "phở"])
+    sys.stdout.flush()
+    assert "pho.md#0" in out.getvalue().decode("cp1252")
 
 
 def test_index_of_an_empty_folder_stops(tmp_path):
